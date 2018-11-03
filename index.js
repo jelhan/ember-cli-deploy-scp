@@ -52,11 +52,11 @@ module.exports = {
 
       build(context) {},
 
-      rsync(destination, port) {
+      rsync(source, destination, port) {
         let rsync = new Rsync()
           .shell('ssh -p ' + port)
           .flags(this.readConfig('flags'))
-          .source(this.readConfig('directory'))
+          .source(source)
           .destination(destination);
 
         let opts = this.readConfig('options');
@@ -112,16 +112,18 @@ module.exports = {
 
           let username    = this.readConfig('username');
           let host        = this.readConfig('host');
-          let path        = this.readConfig('path');
           let port        = this.readConfig('port');
+          let sourcePath  = this.readConfig('directory');
+          let targetPat   = this.readConfig('path');
 
-          return this._upload(username, host, port, path, revisionKey);
+          return this._upload(username, host, port, path, sourcePath, revisionKey);
         } else if (nodes) {
           return sequentially(nodes.map((n) => {
             let username    = n.username;
             let host        = n.host;
-            let path        = n.path;
             let port        = n.port || DEFAULT_PORT;
+            let sourcePath  = n.directory || this.readConfig('directory');;
+            let targetPath  = n.path;
 
             if (!username) {
               _missingNodeConfig('username');
@@ -137,7 +139,7 @@ module.exports = {
 
             // function wrapper needed by the `sequentially` helper, otherwise they would
             // still execute in parallel
-            return () => { return this._upload(username, host, port, path, revisionKey); }
+            return () => { return this._upload(username, host, port, targetPath, sourcePath, revisionKey); }
           }));
         }
       },
@@ -148,17 +150,17 @@ module.exports = {
         throw new Error(message);
       },
 
-      _upload(username, host, port, path, revisionKey) {
+      _upload(username, host, port, path, sourcePath, revisionKey) {
         let targetPath = `${username}@${host}:${path}`;
-        return this._uploadFiles(targetPath, revisionKey, port);
+        return this._uploadFiles(sourcePath, targetPath, revisionKey, port);
       },
 
-      _uploadFiles(targetPath, revisionKey, port) {
+      _uploadFiles(sourcePath, targetPath, revisionKey, port) {
         this.log(`Beginning upload to ${targetPath}`, { verbose: true });
         let parentPath = targetPath.substr(0, targetPath.lastIndexOf('/'));
 
-        return this.rsync(parentPath + '/' + revisionKey, port).then(() => {
-          return this.rsync(targetPath, port);
+        return this.rsync(sourcePath, parentPath + '/' + revisionKey, port).then(() => {
+          return this.rsync(sourcePath, targetPath, port);
         }).then((res) => {
           this.log('Upload completed', { verbose: true });
           return res;
