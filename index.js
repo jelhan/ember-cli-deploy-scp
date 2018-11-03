@@ -133,7 +133,7 @@ module.exports = {
               _missingNodeConfig('host');
             }
 
-            if (!path) {
+            if (!targetPath) {
               _missingNodeConfig('path');
             }
 
